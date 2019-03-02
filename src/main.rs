@@ -66,6 +66,7 @@ fn main() {
     let conn_str = args.value_of("server").unwrap();
 
     if let Some(matches) = args.subcommand_matches("interactive") {
+        // TODO: interactive support
         info!("Interactive connection to {}", conn_str);
     }
 
