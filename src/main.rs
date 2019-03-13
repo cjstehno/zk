@@ -40,36 +40,35 @@ fn main() {
     }
 }
 
-// FIXME: see if I can refactor away some duplication
+fn with_zk(conn_str: &str, fx: &Fn(ZooKeeper)) {
+    match ZooKeeper::connect(conn_str, Duration::new(30000, 0), ConnWatcher {}) {
+        Ok(zk) => fx(zk),
+        Err(e) => panic!("Unable to connect to {}: {:?}", conn_str, e)
+    }
+}
 
 fn list_node(conn_str: &str, node_path: &str) {
     println!("{}", node_path);
 
-    match ZooKeeper::connect(conn_str, Duration::new(30000, 0), ConnWatcher {}) {
-        Ok(zk) => {
-            let children = zk.get_children(node_path, false).unwrap();
-            for child in children {
-                println!(" - {:?}", child);
-            }
-            zk.close().unwrap();
+    with_zk(&conn_str, &|zk: ZooKeeper| {
+        for child in zk.get_children(&node_path, false).unwrap() {
+            println!(" - {:?}", child);
         }
-        Err(e) => panic!("Unable to connect to {}: {:?}", conn_str, e)
-    }
+        zk.close().unwrap();
+    });
 }
 
 fn remove_node(conn_str: &str, node_path: &str) {
-    match ZooKeeper::connect(conn_str, Duration::new(30000, 0), ConnWatcher {}) {
-        Ok(zk) => {
-            match zk.delete(node_path, None) {
-                Ok(_) => println!("(Removed) {}", node_path),
-                Err(_) => panic!("Unable to delete node ({}) - does it have children?", node_path)
-            }
-            zk.close().unwrap();
+    with_zk(&conn_str, &|zk: ZooKeeper| {
+        match zk.delete(&node_path, None) {
+            Ok(_) => println!("(Removed) {}", &node_path),
+            Err(_) => panic!("Unable to delete node ({}) - does it have children?", &node_path)
         }
-        Err(e) => panic!("Unable to connect to {}: {:?}", conn_str, e)
-    }
+        zk.close().unwrap();
+    });
 }
 
+// FIXME: see if I can refactor away some duplication
 fn get_node_data(conn_str: &str, node_path: &str) {
     match ZooKeeper::connect(conn_str, Duration::new(30000, 0), ConnWatcher {}) {
         Ok(zk) => {
@@ -83,6 +82,7 @@ fn get_node_data(conn_str: &str, node_path: &str) {
     }
 }
 
+// FIXME: see if I can refactor away some duplication
 fn set_node_data(conn_str: &str, node_path: &str, node_value: &str) {
     match ZooKeeper::connect(conn_str, Duration::new(30000, 0), ConnWatcher {}) {
         Ok(zk) => {
@@ -129,9 +129,10 @@ fn display_stat(stat: &Stat) {
 
 fn show_help() {
     println!("ZooKeeper Client
-    zk <conn-str> ls /
-    zk <conn-str> set / <value>
-    zk <conn-str> get /
-    zk <conn-str> export / <file>
+    zk <conn-str> ls <node-path>              - lists the children of node-path
+    zk <conn-str> set <node-path> <value>     - sets the value of <node-path> to <value>
+    zk <conn-str> get <node-path>             - gets the value of <node-path>
+    zk <conn-str> rm <node-path>              - removes the <node-path> (not recursive)
+    zk <conn-str> export <node-path> <file>  - exports the node-path data to <file>
     ");
 }
